@@ -66,7 +66,7 @@ class MyApp extends StatelessWidget {
             fontWeight: FontWeight.w800,
             color: lightScheme.onSurface,
           ),
-        ),
+      ),
         cardTheme: CardThemeData(
           elevation: 0,
           margin: EdgeInsets.zero,
@@ -140,6 +140,7 @@ class MyApp extends StatelessWidget {
       ),
       routes: {
         '/': (_) => HomePage(),
+        '/home': (_) => HomePage(),
         '/command': (_) => const CommandPage(),
         '/control': (_) => const ControlPage(),
         '/settings': (_) => const SettingsPage(),

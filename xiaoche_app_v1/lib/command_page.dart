@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'connection_model.dart';
+import 'settings_model.dart';
 import 'speech_service.dart';
 
 class CommandPage extends StatefulWidget {
@@ -15,7 +16,16 @@ class _CommandPageState extends State<CommandPage> {
   final TextEditingController _controller = TextEditingController();
   final SpeechService _speech = SpeechService();
 
+  static const Set<String> _motionCmds = <String>{
+    'forward',
+    'backward',
+    'left',
+    'right',
+    'stop',
+  };
+
   bool _speechReady = false;
+  final Map<String, int> _lastSentSpeedByCmd = <String, int>{};
 
   @override
   void initState() {
@@ -86,11 +96,68 @@ class _CommandPageState extends State<CommandPage> {
     }
   }
 
+  int _percentToU16(double percent) {
+    final p = percent.clamp(0, 100);
+    return (p * 65535 / 100).round();
+  }
+
+  String _normalizeOutgoingCommand(String raw, SettingsModel settings) {
+    final input = raw.trim();
+    if (input.isEmpty) return input;
+
+    final parts = input.split(RegExp(r'\s+'));
+    final cmd = parts.first.toLowerCase();
+
+    if (!_motionCmds.contains(cmd)) {
+      return input;
+    }
+
+    if (cmd == 'stop') {
+      _lastSentSpeedByCmd['stop'] = 0;
+      return 'stop 0';
+    }
+
+    int speed;
+    if (parts.length >= 2) {
+      speed = int.tryParse(parts[1]) ?? _percentToU16(settings.manualSpeedPercent);
+    } else {
+      speed = _percentToU16(settings.manualSpeedPercent);
+    }
+    speed = speed.clamp(0, 65535);
+    _lastSentSpeedByCmd[cmd] = speed;
+
+    return '$cmd $speed';
+  }
+
+  String _displayLogText(LogEntry entry) {
+    final text = entry.text.trim();
+    if (text.isEmpty) return entry.text;
+
+    final upper = text.toUpperCase();
+    if (!upper.startsWith('OK')) return entry.text;
+
+    final parts = text.split(RegExp(r'\s+'));
+    if (parts.length < 2) return entry.text;
+
+    final cmd = parts[1].toLowerCase();
+    if (!_motionCmds.contains(cmd) || cmd == 'stop') return entry.text;
+
+    if (parts.length >= 3 && int.tryParse(parts[2]) != null) {
+      return entry.text;
+    }
+
+    final speed = _lastSentSpeedByCmd[cmd] ?? 30000;
+    return 'OK $cmd $speed';
+  }
+
   Future<void> _send(BuildContext context) async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    await context.read<ConnectionModel>().send(text);
+    final settings = context.read<SettingsModel>();
+    final normalized = _normalizeOutgoingCommand(text, settings);
+
+    await context.read<ConnectionModel>().send(normalized);
     _controller.clear();
   }
 
@@ -314,7 +381,7 @@ class _CommandPageState extends State<CommandPage> {
                                         const SizedBox(width: 8),
                                         Flexible(
                                           child: Text(
-                                            entry.text,
+                                            _displayLogText(entry),
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyMedium

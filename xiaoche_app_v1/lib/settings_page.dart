@@ -74,6 +74,16 @@ class SettingsPage extends StatelessWidget {
                   value: settings.atlasIp,
                   onSave: (value) => settings.setAtlasIp(value),
                   label: 'IP 地址',
+                  validator: _validateHost,
+                ),
+                _buildStringSettingTile(
+                  context,
+                  title: 'Atlas 状态回传IP（可选）',
+                  subtitle: settings.atlasStatusIp.isEmpty ? '留空则使用 Atlas IP' : settings.atlasStatusIp,
+                  value: settings.atlasStatusIp,
+                  onSave: (value) => settings.setAtlasStatusIp(value),
+                  label: '留空则使用 Atlas IP',
+                  validator: _validateOptionalHost,
                 ),
                 _buildIntSettingTile(
                   context,
@@ -104,7 +114,7 @@ class SettingsPage extends StatelessWidget {
                   title: 'RTSP 用户名',
                   subtitle: settings.rtspUsername.isEmpty ? '未设置' : settings.rtspUsername,
                   value: settings.rtspUsername,
-                  onSave: (value) => settings.setRtspUsername(value.trim()),
+                  onSave: (value) => settings.setRtspUsername(value),
                   label: '用户名',
                 ),
                 _buildStringSettingTile(
@@ -114,7 +124,7 @@ class SettingsPage extends StatelessWidget {
                       ? '未设置'
                       : '已设置（${settings.rtspPassword.length}位）',
                   value: settings.rtspPassword,
-                  onSave: (value) => settings.setRtspPassword(value.trim()),
+                  onSave: (value) => settings.setRtspPassword(value),
                   label: '密码',
                   obscureText: true,
                 ),
@@ -218,43 +228,59 @@ class SettingsPage extends StatelessWidget {
     String label,
     void Function(String) onSave, {
     bool obscureText = false,
+    String? Function(String)? validator,
   }) async {
     final controller = TextEditingController(text: currentValue);
+    String? errorText;
+
     final value = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
         title: Text(title),
         content: TextField(
           controller: controller,
-          decoration: InputDecoration(labelText: label),
+            decoration: InputDecoration(labelText: label, errorText: errorText),
           autofocus: true,
           obscureText: obscureText,
+            onChanged: (_) {
+              if (errorText != null) {
+                setState(() => errorText = null);
+              }
+            },
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
+              onPressed: () {
+                final input = controller.text.trim();
+                final err = validator?.call(input);
+                if (err != null) {
+                  setState(() => errorText = err);
+                  return;
+                }
+                Navigator.pop(context, input);
+              },
             child: const Text('保存'),
           ),
         ],
+        ),
       ),
     );
 
     if (value != null) {
-      onSave(value);
+      onSave(value.trim());
     }
   }
 
   Widget _buildIntSettingTile(
-    BuildContext context,
-    {
+    BuildContext context, {
       required String title,
       required String subtitle,
       required int value,
       required void Function(int) onSave,
       required String label,
-    }
-  ) {
+  }) {
     return ListTile(
       title: Text(title),
       subtitle: Text(subtitle),
@@ -264,27 +290,53 @@ class SettingsPage extends StatelessWidget {
   }
 
   Widget _buildStringSettingTile(
-    BuildContext context,
-    {
+    BuildContext context, {
       required String title,
       required String subtitle,
       required String value,
       required void Function(String) onSave,
       required String label,
       bool obscureText = false,
-    }
-  ) {
+    String? Function(String)? validator,
+  }) {
     return ListTile(
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.edit_outlined),
-      onTap: () =>
-          _showStringSettingDialog(context, title, value, label, onSave, obscureText: obscureText),
+      onTap: () => _showStringSettingDialog(
+        context,
+        title,
+        value,
+        label,
+        onSave,
+        obscureText: obscureText,
+        validator: validator,
+      ),
     );
   }
 
-  Future<void> _showClearCacheDialog(
-      BuildContext context, SettingsModel settings) async {
+  String? _validateHost(String input) {
+    final text = input.trim();
+    if (text.isEmpty) return '请输入 IP 或域名';
+
+    final ipv4 = RegExp(
+      r'^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$',
+    );
+    final host = RegExp(r'^[a-zA-Z0-9.-]+$');
+
+    if (ipv4.hasMatch(text) || host.hasMatch(text)) {
+      return null;
+    }
+    return '格式无效，请输入 IPv4 或域名';
+  }
+
+  String? _validateOptionalHost(String input) {
+    final text = input.trim();
+    if (text.isEmpty) return null;
+    return _validateHost(text);
+  }
+
+  Future<void> _showClearCacheDialog(BuildContext context, SettingsModel settings) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -320,7 +372,7 @@ class _ColorPicker extends StatelessWidget {
   final SettingsModel settings;
 
   static const List<Color> _presetColors = [
-    Color(0xFF2F6BFF), // Default Blue
+    Color(0xFF2F6BFF),
     Colors.red,
     Colors.green,
     Colors.orange,
@@ -357,9 +409,7 @@ class _ColorPicker extends StatelessWidget {
                     )
                   : null,
             ),
-            child: isSelected
-                ? const Icon(Icons.check, color: Colors.white, size: 20)
-                : null,
+            child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
           ),
         );
       },

@@ -9,12 +9,15 @@ class SettingsModel extends ChangeNotifier {
   static const _keyDefaultPort = 'settings_default_port';
   static const _keyThemeColor = 'settings_theme_color';
   static const _keyAtlasIp = 'settings_atlas_ip';
+  static const _keyAtlasStatusIp = 'settings_atlas_status_ip';
   static const _keyRtspPort = 'settings_rtsp_port';
   static const _keyStreamPathLive = 'settings_stream_path_live';
   static const _keyStreamPathYolo = 'settings_stream_path_yolo';
   static const _keyRtspUsername = 'settings_rtsp_username';
   static const _keyRtspPassword = 'settings_rtsp_password';
   static const _keyRtspTransport = 'settings_rtsp_transport';
+  static const _keyManualSpeedPercent = 'settings_manual_speed_percent';
+  static const _keyManualUseTextProtocol = 'settings_manual_use_text_protocol';
 
   // Default values
   bool _autoReconnectEnabled = true;
@@ -23,12 +26,15 @@ class SettingsModel extends ChangeNotifier {
   int _defaultPort = 8080;
   Color _themeColor = const Color(0xFF2F6BFF);
   String _atlasIp = '192.168.137.2';
+  String _atlasStatusIp = '';
   int _rtspPort = 8554;
   String _streamPathLive = 'live';
   String _streamPathYolo = 'yolo';
   String _rtspUsername = '';
   String _rtspPassword = '';
   String _rtspTransport = 'tcp';
+  double _manualSpeedPercent = 45;
+  bool _manualUseTextProtocol = false;
 
   bool _loading = true;
 
@@ -39,6 +45,7 @@ class SettingsModel extends ChangeNotifier {
   int get defaultPort => _defaultPort;
   Color get themeColor => _themeColor;
   String get atlasIp => _atlasIp;
+  String get atlasStatusIp => _atlasStatusIp;
   int get rtspPort => _rtspPort;
   String get streamPathLive => _streamPathLive;
   String get streamPathYolo => _streamPathYolo;
@@ -46,6 +53,8 @@ class SettingsModel extends ChangeNotifier {
   String get rtspPassword => _rtspPassword;
   String get rtspTransport => _rtspTransport;
   bool get rtspUseTcp => _rtspTransport.toLowerCase() != 'udp';
+  double get manualSpeedPercent => _manualSpeedPercent;
+  bool get manualUseTextProtocol => _manualUseTextProtocol;
   bool get loading => _loading;
 
   SettingsModel() {
@@ -62,22 +71,32 @@ class SettingsModel extends ChangeNotifier {
     _defaultPort = prefs.getInt(_keyDefaultPort) ?? 8080;
     _themeColor = Color(prefs.getInt(_keyThemeColor) ?? 0xFF2F6BFF);
     _atlasIp = prefs.getString(_keyAtlasIp) ?? '192.168.137.2';
+    _atlasStatusIp = (prefs.getString(_keyAtlasStatusIp) ?? '').trim();
     _rtspPort = prefs.getInt(_keyRtspPort) ?? 8554;
     _streamPathLive = prefs.getString(_keyStreamPathLive) ?? 'live';
     _streamPathYolo = prefs.getString(_keyStreamPathYolo) ?? 'yolo';
     _rtspUsername = prefs.getString(_keyRtspUsername) ?? '';
     _rtspPassword = prefs.getString(_keyRtspPassword) ?? '';
     _rtspTransport = prefs.getString(_keyRtspTransport) ?? 'tcp';
+    _manualSpeedPercent = (prefs.getDouble(_keyManualSpeedPercent) ?? 45).clamp(0, 100);
+    _manualUseTextProtocol = prefs.getBool(_keyManualUseTextProtocol) ?? false;
     _loading = false;
     notifyListeners();
   }
 
   // Setters
   Future<void> setAtlasIp(String value) async {
-    _atlasIp = value;
+    _atlasIp = value.trim();
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyAtlasIp, value);
+    await prefs.setString(_keyAtlasIp, _atlasIp);
+  }
+
+  Future<void> setAtlasStatusIp(String value) async {
+    _atlasStatusIp = value.trim();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAtlasStatusIp, _atlasStatusIp);
   }
 
   Future<void> setRtspPort(int value) async {
@@ -156,6 +175,20 @@ class SettingsModel extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyThemeColor, color.value);
+  }
+
+  Future<void> setManualSpeedPercent(double value) async {
+    _manualSpeedPercent = value.clamp(0, 100);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keyManualSpeedPercent, _manualSpeedPercent);
+  }
+
+  Future<void> setManualUseTextProtocol(bool value) async {
+    _manualUseTextProtocol = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyManualUseTextProtocol, value);
   }
 
   Future<void> clearHistoryAndCache() async {
